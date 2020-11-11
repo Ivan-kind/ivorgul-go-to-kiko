@@ -9,6 +9,7 @@ import ivorgul.go.to.kiko.model.ViewReservations
 import ivorgul.go.to.kiko.type.ViewReservationStatus
 import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.transactions.transaction
+import org.slf4j.LoggerFactory
 import java.sql.Timestamp
 import java.time.LocalDate
 import java.time.LocalTime
@@ -47,6 +48,8 @@ class ViewReservationService(
                     notificationContent = "OBJECT RESERVED"
                 )
             }
+        }.also {
+            logger.info("Reservation was created with id : $it")
         }
 
     fun getViewReservation(id: UUID, currUserId: UUID) =
@@ -88,6 +91,8 @@ class ViewReservationService(
                     NotificationService.instance
                         .saveNotification(reservation.newTenant, "RESERVATION APPROVED")
                 }
+        }.also {
+            logger.info("Reservation with id : $id approved")
         }
     }
 
@@ -103,6 +108,8 @@ class ViewReservationService(
                     NotificationService.instance
                         .saveNotification(reservation.newTenant, "RESERVATION REJECTED")
                 }
+        }.also {
+            logger.info("Reservation with id : $id rejected")
         }
     }
 
@@ -114,6 +121,7 @@ class ViewReservationService(
             }.singleOrNull() ?: throw NotFoundException("Cannot find reservation id : $id"))
                 .also { reservation ->
                     if (reservation.status == ViewReservationStatus.REJECTED) {
+                        logger.debug("Cannot delete rejected reservation with id : $id")
                         throw BadRequestException("Cannot cancel reservation that already rejected")
                     }
                     ViewReservations.deleteWhere {
@@ -122,6 +130,8 @@ class ViewReservationService(
                     NotificationService.instance
                         .saveNotification(reservation.currentTenant, "RESERVATION CANCELED")
                 }
+        }.also {
+            logger.info("Reservation with id : $id canceled")
         }
     }
 
@@ -139,8 +149,9 @@ class ViewReservationService(
             || reservationSrartDate.toLocalDate().isAfter(LocalDate.now().plusDays(windowDays.toLong()))
             || reservationStartTimestamp.before(Timestamp(System.currentTimeMillis() + DAY_IN_MS))
         ) {
+            logger.debug("Reservation time $reservationStartTimestamp is incorrect.")
             throw BadRequestException(
-                "Icorrect reservation time [start - $reservationStartTime end - $reservationEndTime"
+                "Incorrect reservation time [start - $reservationStartTime end - $reservationEndTime]"
             )
         }
         if (ViewReservations.select {
@@ -153,10 +164,15 @@ class ViewReservationService(
                         ))
                     )
             }.any()) {
+            logger.debug("Reservation time : $reservationStartTimestamp already exists")
             throw BadRequestException("Reservation time already reserved for object id : $rentObjectId")
         }
     }
 
     private fun getTimeTo(timeFrom: Timestamp): Timestamp =
         Timestamp(timeFrom.time + (durationMinutes * 60 * 1000))
+
+    companion object {
+        private val logger = LoggerFactory.getLogger(ViewReservationService::class.java)
+    }
 }

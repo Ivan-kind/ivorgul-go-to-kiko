@@ -26,6 +26,9 @@ import org.jetbrains.exposed.sql.SchemaUtils
 import org.jetbrains.exposed.sql.transactions.transaction
 import java.util.*
 
+// TODO return error message in response
+// TODO use not in-memory DB like Postgres + migration like flyway
+// TODO use some Auth system (do not send user id in request params)
 fun Application.myModule(sendNotificationScheduler: SendNotificationScheduler) {
     Database.connect(hikari())
     val config = ConfigFactory.load()
